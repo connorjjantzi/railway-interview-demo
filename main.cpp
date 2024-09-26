@@ -1,25 +1,19 @@
-// Learn about Dear ImGui:
-// - FAQ                  https://dearimgui.com/faq
-// - Getting Started      https://dearimgui.com/getting-started
-// - Documentation        https://dearimgui.com/docs (same as your local docs/
-// folder).
-// - Introduction, links and more at the top of imgui.cpp
-
 #include "imgui.h"
 #include "imgui_impl_glfw.h"
 #include "imgui_impl_opengl3.h"
 #include <stdio.h>
 #define GL_SILENCE_DEPRECATION
 #include "Colors.h"
-#include <GLFW/glfw3.h> // Will drag system OpenGL headers
+#include <GLFW/glfw3.h>
 
 struct TrackSettings {
   int trackLength = 45;
-  int trainHead = 10;
+  float trainHeadX = 10.0f;
+  float trainHeadY = 0.0f;
   int trainLength = 5;
   int switchPosition = 25;
   int trackMultiplier = 18;
-  int framesPerMove = 60;
+  int framesPerMove = 30;
   ImU32 mainTrackPart1Color = ORANGE;
   ImU32 mainTrackPart2Color = ORANGE;
   ImU32 divergentTrackColor = RED;
@@ -61,7 +55,7 @@ void RenderDialog(TrackSettings *currentSettings) {
   ImGui::SetNextItemWidth(100);
   ImGui::InputInt("Track Length", &currentSettings->trackLength);
   ImGui::SetNextItemWidth(100);
-  ImGui::InputInt("Train Head Position", &currentSettings->trainHead);
+  ImGui::InputFloat("Train Head Position", &currentSettings->trainHeadX);
   ImGui::SetNextItemWidth(100);
   ImGui::InputInt("Train Length", &currentSettings->trainLength);
   ImGui::SetNextItemWidth(100);
@@ -125,7 +119,9 @@ void RenderDivergentTrack(int initialXPos, int initialYPos,
   draw_list->AddLine(p1, p2, currentSettings.divergentTrackColor, 8.0f);
 }
 
-void HandleTrainClick(bool &isTrainMoving, ImVec2 topLeft, ImVec2 bottomRight) {
+void HandleTrainClick(TrackSettings *currentSettings, ImVec2 topLeft,
+                      ImVec2 bottomRight) {
+
   // Check if mouse is hovering over the square
   ImVec2 mouse_pos = ImGui::GetMousePos();
   bool isTrainHeadHovered =
@@ -135,7 +131,8 @@ void HandleTrainClick(bool &isTrainMoving, ImVec2 topLeft, ImVec2 bottomRight) {
   // Start train on left click
   if (isTrainHeadHovered) {
     if (ImGui::IsMouseClicked(ImGuiMouseButton_Left)) {
-      isTrainMoving = true;
+      currentSettings->isTrainMoving = true;
+      updateColors(currentSettings);
     }
   }
 }
@@ -143,9 +140,11 @@ void HandleTrainClick(bool &isTrainMoving, ImVec2 topLeft, ImVec2 bottomRight) {
 void RenderTrain(int initialXPos, int initialYPos, float trainSymbolsOffsetY,
                  TrackSettings *currentSettings) {
   // Draw square to represent train head
-  ImVec2 topLeft = ImVec2(initialXPos + currentSettings->trainHead *
+  ImVec2 topLeft = ImVec2(initialXPos + currentSettings->trainHeadX *
                                             currentSettings->trackMultiplier,
-                          initialYPos - trainSymbolsOffsetY);
+                          initialYPos - trainSymbolsOffsetY +
+                              currentSettings->trainHeadY *
+                                  currentSettings->trackMultiplier);
   float squareSize = 10.0f;
   ImVec2 bottomRight = ImVec2(topLeft.x + squareSize, topLeft.y + squareSize);
 
@@ -157,14 +156,15 @@ void RenderTrain(int initialXPos, int initialYPos, float trainSymbolsOffsetY,
     float circle_radius = squareSize / 2;
     ImVec2 center = ImVec2(
         initialXPos +
-            currentSettings->trainHead * currentSettings->trackMultiplier -
+            currentSettings->trainHeadX * currentSettings->trackMultiplier -
             i * currentSettings->trackMultiplier + circle_radius,
-        initialYPos - trainSymbolsOffsetY / 2 - circle_radius);
+        initialYPos - trainSymbolsOffsetY / 2 - circle_radius +
+            currentSettings->trainHeadY * currentSettings->trackMultiplier);
     draw_list->AddCircleFilled(center, circle_radius,
                                IM_COL32(255, 255, 255, 255));
   }
 
-  HandleTrainClick(currentSettings->isTrainMoving, topLeft, bottomRight);
+  HandleTrainClick(currentSettings, topLeft, bottomRight);
 }
 
 // Main code
@@ -179,8 +179,8 @@ int main(int, char **) {
   glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 0);
 
   // Create window with graphics context
-  GLFWwindow *window = glfwCreateWindow(
-      1280, 720, "Dear ImGui GLFW+OpenGL3 example", nullptr, nullptr);
+  GLFWwindow *window =
+      glfwCreateWindow(1280, 720, "Railway Demo", nullptr, nullptr);
   if (window == nullptr)
     return 1;
   glfwMakeContextCurrent(window);
@@ -241,11 +241,51 @@ int main(int, char **) {
         frameCounter++;
 
         if (frameCounter >= currentSettings.framesPerMove) {
-          currentSettings.trainHead += 1;
           frameCounter = 0;
 
+          ImVec2 p1 = ImVec2(initialXPos + currentSettings.switchPosition *
+                                               currentSettings.trackMultiplier,
+                             initialYPos);
+          ImVec2 p2 = ImVec2(initialXPos +
+                                 currentSettings.switchPosition *
+                                     currentSettings.trackMultiplier +
+                                 5 * currentSettings.trackMultiplier,
+                             initialYPos - 5 * currentSettings.trackMultiplier);
+
+          // If the train is on the sloped portion and the switch is flipped
+          if ((initialXPos +
+                       currentSettings.trainHeadX *
+                           currentSettings.trackMultiplier +
+                       trainSymbolsOffsetY <
+                   p1.x ||
+               initialXPos +
+                       currentSettings.trainHeadX *
+                           currentSettings.trackMultiplier +
+                       trainSymbolsOffsetY >=
+                   p2.x) ||
+              !currentSettings.isSwitchFlipped) {
+            currentSettings.trainHeadX += 1;
+
+          } else {
+            // Calculate the slope between p1 and p2
+            float deltaX = p2.x - p1.x;
+            float deltaY = p2.y - p1.y;
+
+            // Move the train along this slope after it reaches the switch
+            currentSettings.trainHeadX +=
+                (deltaX / ((currentSettings.trackLength -
+                            currentSettings.switchPosition) *
+                           currentSettings.trackMultiplier)) *
+                2;
+            currentSettings.trainHeadY +=
+                (deltaY / ((currentSettings.trackLength -
+                            currentSettings.switchPosition) *
+                           currentSettings.trackMultiplier)) *
+                2;
+          }
+
           // Reset position if it goes off the track
-          if (currentSettings.trainHead >= currentSettings.trackLength) {
+          if (currentSettings.trainHeadX >= currentSettings.trackLength) {
             currentSettings.isTrainMoving = false;
             currentSettings.mainTrackPart1Color = RED;
             currentSettings.mainTrackPart2Color = RED;
@@ -254,58 +294,6 @@ int main(int, char **) {
         }
       }
 
-      ImGui::End();
-    }
-
-    // 1. Show the big demo window (Most of the sample code is in
-    // ImGui::ShowDemoWindow()! You can browse its code to learn more about Dear
-    // ImGui!).
-    if (show_demo_window)
-      ImGui::ShowDemoWindow(&show_demo_window);
-
-    // 2. Show a simple window that we create ourselves. We use a Begin/End pair
-    // to create a named window.
-    {
-      static float f = 0.0f;
-      static int counter = 0;
-
-      ImGui::Begin("Hello, world!"); // Create a window called "Hello, world!"
-                                     // and append into it.
-
-      ImGui::Text("This is some useful text."); // Display some text (you can
-                                                // use a format strings too)
-      ImGui::Checkbox(
-          "Demo Window",
-          &show_demo_window); // Edit bools storing our window open/close state
-      ImGui::Checkbox("Another Window", &show_another_window);
-
-      ImGui::SliderFloat("float", &f, 0.0f,
-                         1.0f); // Edit 1 float using a slider from 0.0f to 1.0f
-      ImGui::ColorEdit3(
-          "clear color",
-          (float *)&clear_color); // Edit 3 floats representing a color
-
-      if (ImGui::Button("Button")) // Buttons return true when clicked (most
-                                   // widgets return true when edited/activated)
-        counter++;
-      ImGui::SameLine();
-      ImGui::Text("counter = %d", counter);
-
-      ImGui::Text("Application average %.3f ms/frame (%.1f FPS)",
-                  1000.0f / io.Framerate, io.Framerate);
-      ImGui::End();
-    }
-
-    // 3. Show another simple window.
-    if (show_another_window) {
-      ImGui::Begin(
-          "Another Window",
-          &show_another_window); // Pass a pointer to our bool variable (the
-                                 // window will have a closing button that will
-                                 // clear the bool when clicked)
-      ImGui::Text("Hello from another window!");
-      if (ImGui::Button("Close Me"))
-        show_another_window = false;
       ImGui::End();
     }
 
