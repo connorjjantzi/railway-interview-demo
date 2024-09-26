@@ -10,6 +10,7 @@
 #include "imgui_impl_opengl3.h"
 #include <stdio.h>
 #define GL_SILENCE_DEPRECATION
+#include "Colors.h"
 #include <GLFW/glfw3.h> // Will drag system OpenGL headers
 
 struct TrackSettings {
@@ -19,8 +20,9 @@ struct TrackSettings {
   int switchPosition = 25;
   int trackMultiplier = 18;
   int framesPerMove = 60;
-  ImU32 mainTrackColor = IM_COL32(255, 69, 0, 255);
-  ImU32 divergentTrackColor = IM_COL32(255, 0, 0, 255);
+  ImU32 mainTrackPart1Color = ORANGE;
+  ImU32 mainTrackPart2Color = ORANGE;
+  ImU32 divergentTrackColor = RED;
   bool isSwitchFlipped = false;
   bool isTrainMoving = false;
 
@@ -48,7 +50,25 @@ void RenderDialog(TrackSettings *currentSettings) {
   ImGui::InputInt("Frames Per Move", &currentSettings->framesPerMove);
   ImGui::Checkbox("Is Switch Flipped", &currentSettings->isSwitchFlipped);
   if (ImGui::Checkbox("Is Train Moving", &currentSettings->isTrainMoving)) {
-    currentSettings->mainTrackColor = IM_COL32(0, 255, 0, 255);
+    if (currentSettings->isTrainMoving) {
+      currentSettings->mainTrackPart1Color = GREEN;
+      if (!currentSettings->isSwitchFlipped) {
+        currentSettings->mainTrackPart2Color = GREEN;
+        currentSettings->divergentTrackColor = RED;
+      } else {
+        currentSettings->mainTrackPart2Color = RED;
+        currentSettings->divergentTrackColor = GREEN;
+      }
+    } else {
+      currentSettings->mainTrackPart1Color = ORANGE;
+      if (!currentSettings->isSwitchFlipped) {
+        currentSettings->mainTrackPart2Color = ORANGE;
+        currentSettings->divergentTrackColor = RED;
+      } else {
+        currentSettings->mainTrackPart2Color = RED;
+        currentSettings->divergentTrackColor = ORANGE;
+      }
+    }
   }
 
   if (ImGui::Button("Reset")) {
@@ -64,14 +84,14 @@ void RenderMainTrack(int initialXPos, int initialYPos,
   ImVec2 p2 = ImVec2(initialXPos + currentSettings.switchPosition *
                                        currentSettings.trackMultiplier,
                      initialYPos);
-  draw_list->AddLine(p1, p2, currentSettings.mainTrackColor, 8.0f);
+  draw_list->AddLine(p1, p2, currentSettings.mainTrackPart1Color, 8.0f);
   p1 = ImVec2(initialXPos + currentSettings.switchPosition *
                                 currentSettings.trackMultiplier,
               initialYPos);
   p2 = ImVec2(initialXPos +
                   currentSettings.trackLength * currentSettings.trackMultiplier,
               initialYPos);
-  draw_list->AddLine(p1, p2, currentSettings.mainTrackColor, 8.0f);
+  draw_list->AddLine(p1, p2, currentSettings.mainTrackPart2Color, 8.0f);
 }
 
 void RenderDivergentTrack(int initialXPos, int initialYPos,
@@ -86,7 +106,7 @@ void RenderDivergentTrack(int initialXPos, int initialYPos,
                              currentSettings.trackMultiplier +
                          5 * currentSettings.trackMultiplier,
                      initialYPos - 5 * currentSettings.trackMultiplier);
-  draw_list->AddLine(p1, p2, currentSettings.mainTrackColor, 8.0f);
+  draw_list->AddLine(p1, p2, currentSettings.divergentTrackColor, 8.0f);
   p1 = ImVec2(initialXPos +
                   currentSettings.switchPosition *
                       currentSettings.trackMultiplier +
@@ -96,11 +116,10 @@ void RenderDivergentTrack(int initialXPos, int initialYPos,
   p2 = ImVec2(initialXPos +
                   currentSettings.trackLength * currentSettings.trackMultiplier,
               initialYPos - 5 * currentSettings.trackMultiplier);
-  draw_list->AddLine(p1, p2, currentSettings.mainTrackColor, 8.0f);
+  draw_list->AddLine(p1, p2, currentSettings.divergentTrackColor, 8.0f);
 }
 
-void HandleTrainClick(bool &isTrainMoving, ImU32 &mainTrackColor,
-                      ImVec2 topLeft, ImVec2 bottomRight) {
+void HandleTrainClick(bool &isTrainMoving, ImVec2 topLeft, ImVec2 bottomRight) {
   // Check if mouse is hovering over the square
   ImVec2 mouse_pos = ImGui::GetMousePos();
   bool isTrainHeadHovered =
@@ -139,26 +158,7 @@ void RenderTrain(int initialXPos, int initialYPos, float trainSymbolsOffsetY,
                                IM_COL32(255, 255, 255, 255));
   }
 
-  HandleTrainClick(currentSettings->isTrainMoving,
-                   currentSettings->mainTrackColor, topLeft, bottomRight);
-}
-
-void AnimateTrain(int frameCounter, TrackSettings *currentSettings) {
-  // Move the train on the screen
-  if (currentSettings->isTrainMoving) {
-    frameCounter++;
-
-    if (frameCounter >= currentSettings->framesPerMove) {
-      currentSettings->trainHead += 1;
-      frameCounter = 0;
-
-      // Reset position if it goes off the track
-      if (currentSettings->trainHead >= currentSettings->trackLength) {
-        currentSettings->isTrainMoving = false;
-        currentSettings->mainTrackColor = IM_COL32(255, 0, 0, 255);
-      }
-    }
-  }
+  HandleTrainClick(currentSettings->isTrainMoving, topLeft, bottomRight);
 }
 
 // Main code
@@ -230,7 +230,20 @@ int main(int, char **) {
       RenderTrain(initialXPos, initialYPos, trainSymbolsOffsetY,
                   &currentSettings);
 
-      AnimateTrain(frameCounter, &currentSettings);
+      // Move the train on the screen
+      if (currentSettings.isTrainMoving) {
+        frameCounter++;
+
+        if (frameCounter >= currentSettings.framesPerMove) {
+          currentSettings.trainHead += 1;
+          frameCounter = 0;
+
+          // Reset position if it goes off the track
+          if (currentSettings.trainHead >= currentSettings.trackLength) {
+            currentSettings.isTrainMoving = false;
+          }
+        }
+      }
 
       ImGui::End();
     }

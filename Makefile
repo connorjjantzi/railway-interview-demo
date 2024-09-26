@@ -15,6 +15,7 @@
 CXX = clang++
 EXE = example_glfw_opengl3
 IMGUI_DIR = ./libs/imgui
+INCLUDE_DIR = ./include
 SOURCES = main.cpp
 SOURCES += $(IMGUI_DIR)/imgui.cpp $(IMGUI_DIR)/imgui_demo.cpp $(IMGUI_DIR)/imgui_draw.cpp $(IMGUI_DIR)/imgui_tables.cpp $(IMGUI_DIR)/imgui_widgets.cpp
 SOURCES += $(IMGUI_DIR)/backends/imgui_impl_glfw.cpp $(IMGUI_DIR)/backends/imgui_impl_opengl3.cpp
@@ -25,7 +26,7 @@ LINUX_GL_LIBS = -lGL
 # Build directory
 BUILD_DIR = build
 
-CXXFLAGS = -std=c++11 -I$(IMGUI_DIR) -I$(IMGUI_DIR)/backends
+CXXFLAGS = -std=c++11 -I$(IMGUI_DIR) -I$(IMGUI_DIR)/backends -I$(INCLUDE_DIR)
 CXXFLAGS += -g -Wall -Wformat
 LIBS =
 
