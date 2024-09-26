@@ -13,10 +13,10 @@
 #include <GLFW/glfw3.h> // Will drag system OpenGL headers
 
 struct TrackSettings {
-  int trackLength = 30;
+  int trackLength = 45;
   int trainHead = 10;
   int trainLength = 5;
-  int switchPosition = 0;
+  int switchPosition = 25;
   int trackMultiplier = 18;
   int framesPerMove = 60;
   ImU32 trackColor = IM_COL32(255, 0, 0, 255);
@@ -113,9 +113,37 @@ int main(int, char **) {
       // Draw line for the track
       ImDrawList *draw_list = ImGui::GetForegroundDrawList();
       ImVec2 p1 = ImVec2(initialXPos, initialYPos);
-      ImVec2 p2 = ImVec2(initialXPos + currentSettings.trackLength *
+      ImVec2 p2 = ImVec2(initialXPos + currentSettings.switchPosition *
                                            currentSettings.trackMultiplier,
                          initialYPos);
+      draw_list->AddLine(p1, p2, currentSettings.trackColor, 8.0f);
+      p1 = ImVec2(initialXPos + currentSettings.switchPosition *
+                                    currentSettings.trackMultiplier,
+                  initialYPos);
+      p2 = ImVec2(initialXPos + currentSettings.trackLength *
+                                    currentSettings.trackMultiplier,
+                  initialYPos);
+      draw_list->AddLine(p1, p2, currentSettings.trackColor, 8.0f);
+
+      // Draw divergent track
+      p1 = ImVec2(initialXPos + currentSettings.switchPosition *
+                                    currentSettings.trackMultiplier,
+                  initialYPos);
+      p2 = ImVec2(initialXPos +
+                      currentSettings.switchPosition *
+                          currentSettings.trackMultiplier +
+                      5 * currentSettings.trackMultiplier,
+                  initialYPos - 5 * currentSettings.trackMultiplier);
+      draw_list->AddLine(p1, p2, currentSettings.trackColor, 8.0f);
+      p1 = ImVec2(initialXPos +
+                      currentSettings.switchPosition *
+                          currentSettings.trackMultiplier +
+                      5 * currentSettings.trackMultiplier,
+
+                  initialYPos - 5 * currentSettings.trackMultiplier);
+      p2 = ImVec2(initialXPos + currentSettings.trackLength *
+                                    currentSettings.trackMultiplier,
+                  initialYPos - 5 * currentSettings.trackMultiplier);
       draw_list->AddLine(p1, p2, currentSettings.trackColor, 8.0f);
 
       // Draw square to represent train head
