@@ -12,6 +12,17 @@
 #define GL_SILENCE_DEPRECATION
 #include <GLFW/glfw3.h> // Will drag system OpenGL headers
 
+struct TrackSettings {
+  int trackLength = 30;
+  int trainHead = 10;
+  int trainLength = 5;
+  int switchPosition = 0;
+  int trackMultiplier = 18;
+  ImU32 railColor = IM_COL32(255, 0, 0, 255);
+
+  void Reset() { *this = TrackSettings(); }
+};
+
 static void glfw_error_callback(int error, const char *description) {
   fprintf(stderr, "GLFW Error %d: %s\n", error, description);
 }
@@ -51,54 +62,14 @@ int main(int, char **) {
 
   // Setup Platform/Renderer backends
   ImGui_ImplGlfw_InitForOpenGL(window, true);
-#ifdef __EMSCRIPTEN__
-  ImGui_ImplGlfw_InstallEmscriptenCallbacks(window, "#canvas");
-#endif
   ImGui_ImplOpenGL3_Init(glsl_version);
 
-  // Load Fonts
-  // - If no fonts are loaded, dear imgui will use the default font. You can
-  // also load multiple fonts and use ImGui::PushFont()/PopFont() to select
-  // them.
-  // - AddFontFromFileTTF() will return the ImFont* so you can store it if you
-  // need to select the font among multiple.
-  // - If the file cannot be loaded, the function will return a nullptr. Please
-  // handle those errors in your application (e.g. use an assertion, or display
-  // an error and quit).
-  // - The fonts will be rasterized at a given size (w/ oversampling) and stored
-  // into a texture when calling ImFontAtlas::Build()/GetTexDataAsXXXX(), which
-  // ImGui_ImplXXXX_NewFrame below will call.
-  // - Use '#define IMGUI_ENABLE_FREETYPE' in your imconfig file to use Freetype
-  // for higher quality font rendering.
-  // - Read 'docs/FONTS.md' for more instructions and details.
-  // - Remember that in C/C++ if you want to include a backslash \ in a string
-  // literal you need to write a double backslash \\ !
-  // - Our Emscripten build process allows embedding fonts to be accessible at
-  // runtime from the "fonts/" folder. See Makefile.emscripten for details.
-  // io.Fonts->AddFontDefault();
-  // io.Fonts->AddFontFromFileTTF("c:\\Windows\\Fonts\\segoeui.ttf", 18.0f);
-  // io.Fonts->AddFontFromFileTTF("../../misc/fonts/DroidSans.ttf", 16.0f);
-  // io.Fonts->AddFontFromFileTTF("../../misc/fonts/Roboto-Medium.ttf", 16.0f);
-  // io.Fonts->AddFontFromFileTTF("../../misc/fonts/Cousine-Regular.ttf", 15.0f);
-  // ImFont* font =
-  // io.Fonts->AddFontFromFileTTF("c:\\Windows\\Fonts\\ArialUni.ttf", 18.0f,
-  // nullptr, io.Fonts->GetGlyphRangesJapanese()); IM_ASSERT(font != nullptr);
-
   // Our state
-  bool show_demo_window = true;
+  bool show_demo_window = false;
   bool show_another_window = false;
   ImVec4 clear_color = ImVec4(0.45f, 0.55f, 0.60f, 1.00f);
 
   while (!glfwWindowShouldClose(window)) {
-    // Poll and handle events (inputs, window resize, etc.)
-    // You can read the io.WantCaptureMouse, io.WantCaptureKeyboard flags to
-    // tell if dear imgui wants to use your inputs.
-    // - When io.WantCaptureMouse is true, do not dispatch mouse input data to
-    // your main application, or clear/overwrite your copy of the mouse data.
-    // - When io.WantCaptureKeyboard is true, do not dispatch keyboard input
-    // data to your main application, or clear/overwrite your copy of the
-    // keyboard data. Generally you may always pass all inputs to dear imgui,
-    // and hide them from your application based on those two flags.
     glfwPollEvents();
     if (glfwGetWindowAttrib(window, GLFW_ICONIFIED) != 0) {
       ImGui_ImplGlfw_Sleep(10);
@@ -109,6 +80,64 @@ int main(int, char **) {
     ImGui_ImplOpenGL3_NewFrame();
     ImGui_ImplGlfw_NewFrame();
     ImGui::NewFrame();
+
+    {
+      static TrackSettings currentSettings;
+
+      // Track Control Dialog Box
+      ImGui::Begin("Track Controls");
+      ImGui::SetNextItemWidth(100);
+      ImGui::InputInt("Track Length", &currentSettings.trackLength);
+      ImGui::SetNextItemWidth(100);
+      ImGui::InputInt("Train Head Position", &currentSettings.trainHead);
+      ImGui::SetNextItemWidth(100);
+      ImGui::InputInt("Train Length", &currentSettings.trainLength);
+      ImGui::SetNextItemWidth(100);
+      ImGui::InputInt("Switch Position", &currentSettings.switchPosition);
+      ImGui::SetNextItemWidth(100);
+      ImGui::InputInt("Track Multiplier", &currentSettings.trackMultiplier);
+
+      if (ImGui::Button("Reset")) {
+        currentSettings.Reset();
+      }
+
+      int initialXPos = 50;
+      int initialYPos = 450;
+      float trainSymbolsOffsetY = 20.0f;
+
+      // Draw line for the track
+      ImDrawList *draw_list = ImGui::GetForegroundDrawList();
+      ImVec2 p1 = ImVec2(initialXPos, initialYPos);
+      ImVec2 p2 = ImVec2(initialXPos + currentSettings.trackLength *
+                                           currentSettings.trackMultiplier,
+                         initialYPos);
+      draw_list->AddLine(p1, p2, currentSettings.railColor, 8.0f);
+
+      // Draw square to represent train head
+      ImVec2 top_left =
+          ImVec2(initialXPos + currentSettings.trainHead *
+                                   currentSettings.trackMultiplier,
+                 initialYPos - trainSymbolsOffsetY);
+      float square_size = 10.0f;
+      ImVec2 bottom_right =
+          ImVec2(top_left.x + square_size, top_left.y + square_size);
+
+      draw_list->AddRectFilled(top_left, bottom_right,
+                               IM_COL32(255, 255, 255, 255));
+
+      for (int i = 1; i < currentSettings.trainLength; i++) {
+        float circle_radius = square_size / 2;
+        ImVec2 center = ImVec2(
+            initialXPos +
+                currentSettings.trainHead * currentSettings.trackMultiplier -
+                i * currentSettings.trackMultiplier + circle_radius,
+            initialYPos - trainSymbolsOffsetY / 2 - circle_radius);
+        draw_list->AddCircleFilled(center, circle_radius,
+                                   IM_COL32(255, 255, 255, 255));
+      }
+
+      ImGui::End();
+    }
 
     // 1. Show the big demo window (Most of the sample code is in
     // ImGui::ShowDemoWindow()! You can browse its code to learn more about Dear
