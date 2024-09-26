@@ -33,6 +33,28 @@ static void glfw_error_callback(int error, const char *description) {
   fprintf(stderr, "GLFW Error %d: %s\n", error, description);
 }
 
+void updateColors(TrackSettings *currentSettings) {
+  if (currentSettings->isTrainMoving) {
+    currentSettings->mainTrackPart1Color = GREEN;
+    if (!currentSettings->isSwitchFlipped) {
+      currentSettings->mainTrackPart2Color = GREEN;
+      currentSettings->divergentTrackColor = RED;
+    } else {
+      currentSettings->mainTrackPart2Color = RED;
+      currentSettings->divergentTrackColor = GREEN;
+    }
+  } else {
+    currentSettings->mainTrackPart1Color = ORANGE;
+    if (!currentSettings->isSwitchFlipped) {
+      currentSettings->mainTrackPart2Color = ORANGE;
+      currentSettings->divergentTrackColor = RED;
+    } else {
+      currentSettings->mainTrackPart2Color = RED;
+      currentSettings->divergentTrackColor = ORANGE;
+    }
+  }
+}
+
 void RenderDialog(TrackSettings *currentSettings) {
   // Track Control Dialog Box
   ImGui::Begin("Track Controls");
@@ -48,27 +70,11 @@ void RenderDialog(TrackSettings *currentSettings) {
   ImGui::InputInt("Track Multiplier", &currentSettings->trackMultiplier);
   ImGui::SetNextItemWidth(100);
   ImGui::InputInt("Frames Per Move", &currentSettings->framesPerMove);
-  ImGui::Checkbox("Is Switch Flipped", &currentSettings->isSwitchFlipped);
+  if (ImGui::Checkbox("Is Switch Flipped", &currentSettings->isSwitchFlipped)) {
+    updateColors(currentSettings);
+  }
   if (ImGui::Checkbox("Is Train Moving", &currentSettings->isTrainMoving)) {
-    if (currentSettings->isTrainMoving) {
-      currentSettings->mainTrackPart1Color = GREEN;
-      if (!currentSettings->isSwitchFlipped) {
-        currentSettings->mainTrackPart2Color = GREEN;
-        currentSettings->divergentTrackColor = RED;
-      } else {
-        currentSettings->mainTrackPart2Color = RED;
-        currentSettings->divergentTrackColor = GREEN;
-      }
-    } else {
-      currentSettings->mainTrackPart1Color = ORANGE;
-      if (!currentSettings->isSwitchFlipped) {
-        currentSettings->mainTrackPart2Color = ORANGE;
-        currentSettings->divergentTrackColor = RED;
-      } else {
-        currentSettings->mainTrackPart2Color = RED;
-        currentSettings->divergentTrackColor = ORANGE;
-      }
-    }
+    updateColors(currentSettings);
   }
 
   if (ImGui::Button("Reset")) {
@@ -241,6 +247,9 @@ int main(int, char **) {
           // Reset position if it goes off the track
           if (currentSettings.trainHead >= currentSettings.trackLength) {
             currentSettings.isTrainMoving = false;
+            currentSettings.mainTrackPart1Color = RED;
+            currentSettings.mainTrackPart2Color = RED;
+            currentSettings.divergentTrackColor = RED;
           }
         }
       }
