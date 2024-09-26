@@ -18,7 +18,8 @@ struct TrackSettings {
   int trainLength = 5;
   int switchPosition = 0;
   int trackMultiplier = 18;
-  ImU32 railColor = IM_COL32(255, 0, 0, 255);
+  int framesPerMove = 60;
+  ImU32 trackColor = IM_COL32(255, 0, 0, 255);
 
   void Reset() { *this = TrackSettings(); }
 };
@@ -83,6 +84,8 @@ int main(int, char **) {
 
     {
       static TrackSettings currentSettings;
+      static bool isTrainMoving = false;
+      static int frameCounter = 0;
 
       // Track Control Dialog Box
       ImGui::Begin("Track Controls");
@@ -96,6 +99,8 @@ int main(int, char **) {
       ImGui::InputInt("Switch Position", &currentSettings.switchPosition);
       ImGui::SetNextItemWidth(100);
       ImGui::InputInt("Track Multiplier", &currentSettings.trackMultiplier);
+      ImGui::SetNextItemWidth(100);
+      ImGui::InputInt("Frames Per Move", &currentSettings.framesPerMove);
 
       if (ImGui::Button("Reset")) {
         currentSettings.Reset();
@@ -111,7 +116,7 @@ int main(int, char **) {
       ImVec2 p2 = ImVec2(initialXPos + currentSettings.trackLength *
                                            currentSettings.trackMultiplier,
                          initialYPos);
-      draw_list->AddLine(p1, p2, currentSettings.railColor, 8.0f);
+      draw_list->AddLine(p1, p2, currentSettings.trackColor, 8.0f);
 
       // Draw square to represent train head
       ImVec2 top_left =
@@ -125,6 +130,13 @@ int main(int, char **) {
       draw_list->AddRectFilled(top_left, bottom_right,
                                IM_COL32(255, 255, 255, 255));
 
+      // Check if mouse is hovering over the square
+      ImVec2 mouse_pos = ImGui::GetMousePos();
+      bool is_hovered =
+          mouse_pos.x >= top_left.x && mouse_pos.x <= bottom_right.x &&
+          mouse_pos.y >= top_left.y && mouse_pos.y <= bottom_right.y;
+
+      // Draw other parts of train
       for (int i = 1; i < currentSettings.trainLength; i++) {
         float circle_radius = square_size / 2;
         ImVec2 center = ImVec2(
@@ -134,6 +146,30 @@ int main(int, char **) {
             initialYPos - trainSymbolsOffsetY / 2 - circle_radius);
         draw_list->AddCircleFilled(center, circle_radius,
                                    IM_COL32(255, 255, 255, 255));
+      }
+
+      // Start train on left click
+      if (is_hovered) {
+        if (ImGui::IsMouseClicked(ImGuiMouseButton_Left)) {
+          isTrainMoving = true;
+          currentSettings.trackColor = IM_COL32(0, 255, 0, 255);
+        }
+      }
+
+      // Move the train on the screen
+      if (isTrainMoving) {
+        frameCounter++;
+
+        if (frameCounter >= currentSettings.framesPerMove) {
+          currentSettings.trainHead += 1;
+          frameCounter = 0;
+
+          // Reset position if it goes off the track
+          if (currentSettings.trainHead >= currentSettings.trackLength) {
+            isTrainMoving = false;
+            currentSettings.trackColor = IM_COL32(255, 0, 0, 255);
+          }
+        }
       }
 
       ImGui::End();
