@@ -19,13 +19,146 @@ struct TrackSettings {
   int switchPosition = 25;
   int trackMultiplier = 18;
   int framesPerMove = 60;
-  ImU32 trackColor = IM_COL32(255, 0, 0, 255);
+  ImU32 mainTrackColor = IM_COL32(255, 69, 0, 255);
+  ImU32 divergentTrackColor = IM_COL32(255, 0, 0, 255);
+  bool isSwitchFlipped = false;
+  bool isTrainMoving = false;
 
   void Reset() { *this = TrackSettings(); }
 };
 
 static void glfw_error_callback(int error, const char *description) {
   fprintf(stderr, "GLFW Error %d: %s\n", error, description);
+}
+
+void RenderDialog(TrackSettings *currentSettings) {
+  // Track Control Dialog Box
+  ImGui::Begin("Track Controls");
+  ImGui::SetNextItemWidth(100);
+  ImGui::InputInt("Track Length", &currentSettings->trackLength);
+  ImGui::SetNextItemWidth(100);
+  ImGui::InputInt("Train Head Position", &currentSettings->trainHead);
+  ImGui::SetNextItemWidth(100);
+  ImGui::InputInt("Train Length", &currentSettings->trainLength);
+  ImGui::SetNextItemWidth(100);
+  ImGui::InputInt("Switch Position", &currentSettings->switchPosition);
+  ImGui::SetNextItemWidth(100);
+  ImGui::InputInt("Track Multiplier", &currentSettings->trackMultiplier);
+  ImGui::SetNextItemWidth(100);
+  ImGui::InputInt("Frames Per Move", &currentSettings->framesPerMove);
+  ImGui::Checkbox("Is Switch Flipped", &currentSettings->isSwitchFlipped);
+  if (ImGui::Checkbox("Is Train Moving", &currentSettings->isTrainMoving)) {
+    currentSettings->mainTrackColor = IM_COL32(0, 255, 0, 255);
+  }
+
+  if (ImGui::Button("Reset")) {
+    currentSettings->Reset();
+  }
+}
+
+void RenderMainTrack(int initialXPos, int initialYPos,
+                     TrackSettings currentSettings) {
+  // Draw line for the track
+  ImDrawList *draw_list = ImGui::GetForegroundDrawList();
+  ImVec2 p1 = ImVec2(initialXPos, initialYPos);
+  ImVec2 p2 = ImVec2(initialXPos + currentSettings.switchPosition *
+                                       currentSettings.trackMultiplier,
+                     initialYPos);
+  draw_list->AddLine(p1, p2, currentSettings.mainTrackColor, 8.0f);
+  p1 = ImVec2(initialXPos + currentSettings.switchPosition *
+                                currentSettings.trackMultiplier,
+              initialYPos);
+  p2 = ImVec2(initialXPos +
+                  currentSettings.trackLength * currentSettings.trackMultiplier,
+              initialYPos);
+  draw_list->AddLine(p1, p2, currentSettings.mainTrackColor, 8.0f);
+}
+
+void RenderDivergentTrack(int initialXPos, int initialYPos,
+                          TrackSettings currentSettings) {
+  // Draw divergent track
+  ImDrawList *draw_list = ImGui::GetForegroundDrawList();
+  ImVec2 p1 = ImVec2(initialXPos + currentSettings.switchPosition *
+                                       currentSettings.trackMultiplier,
+                     initialYPos);
+  ImVec2 p2 = ImVec2(initialXPos +
+                         currentSettings.switchPosition *
+                             currentSettings.trackMultiplier +
+                         5 * currentSettings.trackMultiplier,
+                     initialYPos - 5 * currentSettings.trackMultiplier);
+  draw_list->AddLine(p1, p2, currentSettings.mainTrackColor, 8.0f);
+  p1 = ImVec2(initialXPos +
+                  currentSettings.switchPosition *
+                      currentSettings.trackMultiplier +
+                  5 * currentSettings.trackMultiplier,
+
+              initialYPos - 5 * currentSettings.trackMultiplier);
+  p2 = ImVec2(initialXPos +
+                  currentSettings.trackLength * currentSettings.trackMultiplier,
+              initialYPos - 5 * currentSettings.trackMultiplier);
+  draw_list->AddLine(p1, p2, currentSettings.mainTrackColor, 8.0f);
+}
+
+void HandleTrainClick(bool &isTrainMoving, ImU32 &mainTrackColor,
+                      ImVec2 topLeft, ImVec2 bottomRight) {
+  // Check if mouse is hovering over the square
+  ImVec2 mouse_pos = ImGui::GetMousePos();
+  bool isTrainHeadHovered =
+      mouse_pos.x >= topLeft.x && mouse_pos.x <= bottomRight.x &&
+      mouse_pos.y >= topLeft.y && mouse_pos.y <= bottomRight.y;
+
+  // Start train on left click
+  if (isTrainHeadHovered) {
+    if (ImGui::IsMouseClicked(ImGuiMouseButton_Left)) {
+      isTrainMoving = true;
+    }
+  }
+}
+
+void RenderTrain(int initialXPos, int initialYPos, float trainSymbolsOffsetY,
+                 TrackSettings *currentSettings) {
+  // Draw square to represent train head
+  ImVec2 topLeft = ImVec2(initialXPos + currentSettings->trainHead *
+                                            currentSettings->trackMultiplier,
+                          initialYPos - trainSymbolsOffsetY);
+  float squareSize = 10.0f;
+  ImVec2 bottomRight = ImVec2(topLeft.x + squareSize, topLeft.y + squareSize);
+
+  ImDrawList *draw_list = ImGui::GetForegroundDrawList();
+  draw_list->AddRectFilled(topLeft, bottomRight, IM_COL32(255, 255, 255, 255));
+
+  // Draw other parts of train
+  for (int i = 1; i < currentSettings->trainLength; i++) {
+    float circle_radius = squareSize / 2;
+    ImVec2 center = ImVec2(
+        initialXPos +
+            currentSettings->trainHead * currentSettings->trackMultiplier -
+            i * currentSettings->trackMultiplier + circle_radius,
+        initialYPos - trainSymbolsOffsetY / 2 - circle_radius);
+    draw_list->AddCircleFilled(center, circle_radius,
+                               IM_COL32(255, 255, 255, 255));
+  }
+
+  HandleTrainClick(currentSettings->isTrainMoving,
+                   currentSettings->mainTrackColor, topLeft, bottomRight);
+}
+
+void AnimateTrain(int frameCounter, TrackSettings *currentSettings) {
+  // Move the train on the screen
+  if (currentSettings->isTrainMoving) {
+    frameCounter++;
+
+    if (frameCounter >= currentSettings->framesPerMove) {
+      currentSettings->trainHead += 1;
+      frameCounter = 0;
+
+      // Reset position if it goes off the track
+      if (currentSettings->trainHead >= currentSettings->trackLength) {
+        currentSettings->isTrainMoving = false;
+        currentSettings->mainTrackColor = IM_COL32(255, 0, 0, 255);
+      }
+    }
+  }
 }
 
 // Main code
@@ -84,121 +217,20 @@ int main(int, char **) {
 
     {
       static TrackSettings currentSettings;
-      static bool isTrainMoving = false;
       static int frameCounter = 0;
 
-      // Track Control Dialog Box
-      ImGui::Begin("Track Controls");
-      ImGui::SetNextItemWidth(100);
-      ImGui::InputInt("Track Length", &currentSettings.trackLength);
-      ImGui::SetNextItemWidth(100);
-      ImGui::InputInt("Train Head Position", &currentSettings.trainHead);
-      ImGui::SetNextItemWidth(100);
-      ImGui::InputInt("Train Length", &currentSettings.trainLength);
-      ImGui::SetNextItemWidth(100);
-      ImGui::InputInt("Switch Position", &currentSettings.switchPosition);
-      ImGui::SetNextItemWidth(100);
-      ImGui::InputInt("Track Multiplier", &currentSettings.trackMultiplier);
-      ImGui::SetNextItemWidth(100);
-      ImGui::InputInt("Frames Per Move", &currentSettings.framesPerMove);
-
-      if (ImGui::Button("Reset")) {
-        currentSettings.Reset();
-      }
+      RenderDialog(&currentSettings);
 
       int initialXPos = 50;
       int initialYPos = 450;
       float trainSymbolsOffsetY = 20.0f;
 
-      // Draw line for the track
-      ImDrawList *draw_list = ImGui::GetForegroundDrawList();
-      ImVec2 p1 = ImVec2(initialXPos, initialYPos);
-      ImVec2 p2 = ImVec2(initialXPos + currentSettings.switchPosition *
-                                           currentSettings.trackMultiplier,
-                         initialYPos);
-      draw_list->AddLine(p1, p2, currentSettings.trackColor, 8.0f);
-      p1 = ImVec2(initialXPos + currentSettings.switchPosition *
-                                    currentSettings.trackMultiplier,
-                  initialYPos);
-      p2 = ImVec2(initialXPos + currentSettings.trackLength *
-                                    currentSettings.trackMultiplier,
-                  initialYPos);
-      draw_list->AddLine(p1, p2, currentSettings.trackColor, 8.0f);
+      RenderMainTrack(initialXPos, initialYPos, currentSettings);
+      RenderDivergentTrack(initialXPos, initialYPos, currentSettings);
+      RenderTrain(initialXPos, initialYPos, trainSymbolsOffsetY,
+                  &currentSettings);
 
-      // Draw divergent track
-      p1 = ImVec2(initialXPos + currentSettings.switchPosition *
-                                    currentSettings.trackMultiplier,
-                  initialYPos);
-      p2 = ImVec2(initialXPos +
-                      currentSettings.switchPosition *
-                          currentSettings.trackMultiplier +
-                      5 * currentSettings.trackMultiplier,
-                  initialYPos - 5 * currentSettings.trackMultiplier);
-      draw_list->AddLine(p1, p2, currentSettings.trackColor, 8.0f);
-      p1 = ImVec2(initialXPos +
-                      currentSettings.switchPosition *
-                          currentSettings.trackMultiplier +
-                      5 * currentSettings.trackMultiplier,
-
-                  initialYPos - 5 * currentSettings.trackMultiplier);
-      p2 = ImVec2(initialXPos + currentSettings.trackLength *
-                                    currentSettings.trackMultiplier,
-                  initialYPos - 5 * currentSettings.trackMultiplier);
-      draw_list->AddLine(p1, p2, currentSettings.trackColor, 8.0f);
-
-      // Draw square to represent train head
-      ImVec2 top_left =
-          ImVec2(initialXPos + currentSettings.trainHead *
-                                   currentSettings.trackMultiplier,
-                 initialYPos - trainSymbolsOffsetY);
-      float square_size = 10.0f;
-      ImVec2 bottom_right =
-          ImVec2(top_left.x + square_size, top_left.y + square_size);
-
-      draw_list->AddRectFilled(top_left, bottom_right,
-                               IM_COL32(255, 255, 255, 255));
-
-      // Check if mouse is hovering over the square
-      ImVec2 mouse_pos = ImGui::GetMousePos();
-      bool is_hovered =
-          mouse_pos.x >= top_left.x && mouse_pos.x <= bottom_right.x &&
-          mouse_pos.y >= top_left.y && mouse_pos.y <= bottom_right.y;
-
-      // Draw other parts of train
-      for (int i = 1; i < currentSettings.trainLength; i++) {
-        float circle_radius = square_size / 2;
-        ImVec2 center = ImVec2(
-            initialXPos +
-                currentSettings.trainHead * currentSettings.trackMultiplier -
-                i * currentSettings.trackMultiplier + circle_radius,
-            initialYPos - trainSymbolsOffsetY / 2 - circle_radius);
-        draw_list->AddCircleFilled(center, circle_radius,
-                                   IM_COL32(255, 255, 255, 255));
-      }
-
-      // Start train on left click
-      if (is_hovered) {
-        if (ImGui::IsMouseClicked(ImGuiMouseButton_Left)) {
-          isTrainMoving = true;
-          currentSettings.trackColor = IM_COL32(0, 255, 0, 255);
-        }
-      }
-
-      // Move the train on the screen
-      if (isTrainMoving) {
-        frameCounter++;
-
-        if (frameCounter >= currentSettings.framesPerMove) {
-          currentSettings.trainHead += 1;
-          frameCounter = 0;
-
-          // Reset position if it goes off the track
-          if (currentSettings.trainHead >= currentSettings.trackLength) {
-            isTrainMoving = false;
-            currentSettings.trackColor = IM_COL32(255, 0, 0, 255);
-          }
-        }
-      }
+      AnimateTrain(frameCounter, &currentSettings);
 
       ImGui::End();
     }
